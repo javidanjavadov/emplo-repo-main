@@ -170,8 +170,10 @@ def update_remaining_vacation_days(user_id, new_remaining_days):
 def generate_secure_otp(email):
     """Generate and store a time-based OTP"""
     secret = pyotp.random_base32()
-    otp = pyotp.TOTP(secret, interval=OTP_VALID_DURATION).now()
+    totp = pyotp.TOTP(secret, interval=OTP_VALID_DURATION)
+    otp = totp.now()
     otp_storage[email] = {
+        'otp': otp,  # Store the generated OTP
         'secret': secret,
         'attempts': 0,
         'created_at': time(),
@@ -576,41 +578,50 @@ def verify_otp():
     
     email = session['reset_email']
     otp_data = otp_storage.get(email, {})
+    otp_verified = False
     
     if request.method == 'POST':
-        user_otp = request.form['otp'].strip()
-        new_password = request.form['new_password']
-        confirm_password = request.form['confirm_password']
+        if 'otp' in request.form:
+            user_otp = request.form['otp'].strip()
+            stored_otp = otp_data.get('otp')
+            
+            if user_otp == stored_otp:
+                otp_verified = True
+                session['otp_verified'] = True  # Store verification in session
+                flash("OTP verified successfully!", "success")
+                return redirect(url_for('verify_otp'))  # Reload to show password form
+            else:
+                otp_data['attempts'] += 1
+                flash("Invalid OTP. Please try again.", "danger")
         
-        # Security checks
-        if otp_data.get('attempts', 0) >= MAX_OTP_ATTEMPTS:
-            flash("Too many attempts. Please request a new OTP.", "danger")
-            return redirect(url_for('forgot_password'))
-        
-        if new_password != confirm_password:
-            flash("Passwords do not match", "danger")
-            return redirect(url_for('verify_otp'))
-        
-        # Validate OTP
-        totp = pyotp.TOTP(otp_data['secret'], interval=OTP_VALID_DURATION)
-        if not totp.verify(user_otp):
-            otp_storage[email]['attempts'] += 1
-            otp_storage[email]['last_attempt'] = time()
-            remaining_attempts = MAX_OTP_ATTEMPTS - otp_storage[email]['attempts']
-            flash(f"Invalid OTP. {remaining_attempts} attempts remaining", "danger")
-            return redirect(url_for('verify_otp'))
-        
-        # OTP validated successfully
-        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
-        if update_user_password(email, hashed_password):
-            del otp_storage[email]
-            session.pop('reset_email', None)
-            flash("Password updated successfully!", "success")
-            return redirect(url_for('login'))
-        else:
-            flash("Password update failed. Please try again.", "danger")
-    
-    return render_template('verify_otp.html')
+        elif 'new_password' in request.form and 'confirm_password' in request.form:
+            if not session.get('otp_verified'):
+                flash("OTP verification required first", "danger")
+                return redirect(url_for('verify_otp'))
+            
+            new_password = request.form['new_password']
+            confirm_password = request.form['confirm_password']
+
+            if new_password != confirm_password:
+                flash("Passwords do not match.", "danger")
+            else:
+                # Update password logic
+                hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                if update_user_password(email, hashed_password):
+                    # Clear OTP data and session
+                    otp_storage.pop(email, None)
+                    session.pop('reset_email', None)
+                    session.pop('otp_verified', None)
+                    flash("Password reset successfully!", "success")
+                    return redirect(url_for('login'))
+                else:
+                    flash("Password reset failed. Please try again.", "danger")
+
+    # Check if OTP was previously verified
+    otp_verified = session.get('otp_verified', False)
+    return render_template('verify_otp.html', otp_verified=otp_verified)
+
+
 
 def update_user_password(email, new_password):
     """Update password in database"""
