@@ -690,124 +690,96 @@ def google_auth():
 @app.route('/create_vacation_request', methods=['POST'])
 @login_required
 def create_vacation_request():
-    # Cooldown protection (120 seconds wait time)
-    COOLDOWN = 120  # seconds (2 minutes)
-    last_action = session.get('last_action_time')
-    current_time = time()  # Get current time in seconds
+    try:
+        user = get_user_by_id(current_user.id)
+        leave_reason = request.form.get('reason')
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
 
-    if last_action and (current_time - last_action) < COOLDOWN:
-        flash("Lütfen ard arda işlem yapmadan önce biraz bekleyin.", 'error')
-        return redirect(url_for('operator_dashboard'))  # Kullanıcıyı operator_dashboard'a yönlendiriyoruz
+        if not all([leave_reason, start_date_str, end_date_str]):
+            flash("All fields are required.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-    if request.method == 'POST':
-        try:
-            # Get user details
-            user = get_user_by_id(current_user.id)
-            leave_reason = request.form.get('reason')
-            start_date_str = request.form.get('start_date')
-            end_date_str = request.form.get('end_date')
+        if has_pending_request(user.id):
+            flash("You already have a pending vacation request. Please wait until it is processed.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-            # Check if all fields are filled
-            if not all([leave_reason, start_date_str, end_date_str]):
-                flash("All fields are required.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        delta = (end_date - start_date).days
 
-            # Check for pending vacation request
-            if has_pending_request(user.id):
-                flash("You already have a pending vacation request. Please wait until it is processed.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+        if delta < 0:
+            flash("End date must be after the start date.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-            # Convert date strings to datetime objects
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-            delta = (end_date - start_date).days
+        max_allowed_days = leave_reasons.get(leave_reason, 0)
+        if max_allowed_days == 0:
+            flash("Invalid leave reason selected.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-            # Check if the end date is after the start date
-            if delta < 0:
-                flash("End date must be after the start date.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+        if delta > max_allowed_days:
+            flash(f"This leave type allows a maximum of {max_allowed_days} days.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-            # Check the maximum allowed vacation days for the leave reason
-            max_allowed_days = leave_reasons.get(leave_reason, 0)
-            if max_allowed_days == 0:
-                flash("Invalid leave reason selected.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+        remaining_vacation_days = get_user_remaining_vacation_days(user.id)
+        if remaining_vacation_days < delta:
+            flash("Not enough vacation days left.", 'danger')
+            return redirect(url_for('operator_dashboard'))
 
-            # Validate the requested days against the allowed days
-            if delta > max_allowed_days:
-                flash(f"This leave type allows a maximum of {max_allowed_days} days.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+        if save_vacation_request(user.id, start_date, end_date, leave_reason):
+            flash("Request submitted successfully! Waiting for approval.", 'success')
+        else:
+            flash("Failed to create vacation request.", 'danger')
 
-            # Check if the user has enough remaining vacation days
-            remaining_vacation_days = get_user_remaining_vacation_days(user.id)
-            if remaining_vacation_days < delta:
-                flash("Not enough vacation days left.", 'danger')
-                return redirect(url_for('operator_dashboard'))
+    except ValueError:
+        flash("Invalid date format.", 'danger')
+    except Exception as e:
+        flash("An error occurred while processing your request.", 'danger')
 
-            # Save the vacation request to the database (pending status initially)
-            if save_vacation_request(user.id, start_date, end_date, leave_reason):
-                flash("Request submitted successfully! Waiting for approval.", 'success')
-            else:
-                flash("Failed to create vacation request.", 'danger')
-
-        except ValueError:
-            flash("Invalid date format.", 'danger')
-        except Exception as e:
-            flash("An error occurred while processing your request.", 'danger')
-
-        # Update the last action time in session to prevent spamming
-        session['last_action_time'] = current_time
-        
-        return redirect(url_for('operator_dashboard'))
+    return redirect(url_for('operator_dashboard'))
 
 
 @app.route('/cancel_request/<int:request_id>', methods=['POST'])
 @login_required
 def cancel_request(request_id):
-    # Cooldown protection (120 seconds wait time)
-    COOLDOWN = 120  # seconds (2 minutes)
-    last_action = session.get('last_action_time')
-    current_time = time()  # Get current time in seconds
+    COOLDOWN = 120  # Cooldown time in seconds (2 minutes)
+    last_cancel = session.get('last_cancel_time', 0)
+    current_time = time()
 
-    if last_action and (current_time - last_action) < COOLDOWN:
-        flash("Please wait a moment before making another request.", 'error')
-        return redirect(url_for('operator_dashboard'))  # Redirect user to the operator dashboard
+    # Cooldown applies only after creating a new request following a cancellation
+    if last_cancel and (current_time - last_cancel) < COOLDOWN:
+        flash("Please wait before canceling another request.", 'error')
+        return redirect(url_for('operator_dashboard'))
     
-    # Fetch vacation request from the database using raw SQL
     query = """SELECT id, user_id, start_date, end_date, leave_reason, status 
                FROM vacation_requests WHERE id = %s"""
     result = execute_query(query, (request_id,))
 
     if not result:
         flash("Request not found.", 'error')
-        return redirect(url_for('operator_dashboard'))  # Redirect to the operator dashboard
+        return redirect(url_for('operator_dashboard'))
 
-    # Mapping the result to a dictionary for easier access
     vacation_request = dict(zip(['id', 'user_id', 'start_date', 'end_date', 'leave_reason', 'status'], result))
 
-    # Authorization check (ensure the current user owns the vacation request)
     if vacation_request['user_id'] != current_user.id:
-        abort(403)  # Forbidden error if not authorized
-    
-    # Only allow canceling pending requests
-    if vacation_request['status'].lower() != 'pending':  # Compare the status in lowercase
+        abort(403)  # Forbidden
+
+    if vacation_request['status'].lower() != 'pending':
         flash("You can only cancel pending requests.", 'error')
-        return redirect(url_for('operator_dashboard'))  # Redirect to the operator dashboard
-    
-    # Check if the request has already been canceled and ensure cooldown
+        return redirect(url_for('operator_dashboard'))
+
     if vacation_request['status'].lower() == 'cancelled':
         flash("This request has already been canceled.", 'error')
-        return redirect(url_for('operator_dashboard'))  # Redirect to the operator dashboard
+        return redirect(url_for('operator_dashboard'))
 
-    # Update the status to 'Cancelled' in the database
     update_query = """UPDATE vacation_requests SET status = 'Cancelled' WHERE id = %s"""
     execute_query(update_query, (request_id,), commit=True)
 
-    # Update the last action time in the session to prevent spamming
-    session['last_action_time'] = current_time
-    
+    # Set last cancel time to enforce cooldown only after cancellation
+    session['last_cancel_time'] = current_time
+
     flash("Request successfully canceled.", 'success')
-    return redirect(url_for('operator_dashboard'))  # Redirect to the operator dashboard
+    return redirect(url_for('operator_dashboard'))
 
 
 
