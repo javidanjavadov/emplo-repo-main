@@ -45,7 +45,8 @@
         }
 
         .form-container input[type="email"],
-        .form-container input[type="password"] {
+        .form-container input[type="password"],
+        .form-container input[type="text"] {
             width: 100%;
             padding: 15px;
             margin: 15px 0;
@@ -124,35 +125,93 @@
             display: block;
             margin: 10px 0;
         }
-        .form-container input[type="email"],
-.form-container input[type="password"] {
-    width: calc(100% - 30px); /* Adjust the width to match the buttons */
-    padding: 15px;
-    margin: 15px 0;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 16px;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-}
 
-    </style></head>
+    </style>
+</head>
 <body>
     <div class="form-container">
         <div class="brand-header">
             <div class="brand-text">Verify OTP</div>
         </div>
 
-        <form method="POST">
-            <input type="text" name="otp" placeholder="Enter OTP" required>
-            <input type="password" name="new_password" placeholder="New Password" required>
-            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+        <form method="POST" id="otpForm">
+            <input type="text" name="otp" id="otp" placeholder="Enter OTP" required>
+            
+            <!-- Password fields hidden initially -->
+            <div id="passwordFields" style="display:none;">
+                <input type="password" name="new_password" id="new_password" placeholder="New Password" required>
+                <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+            </div>
+
             <button type="submit" class="button">Reset Password</button>
         </form>
 
         <div class="auth-buttons">
-            <a href="{{ url_for('forgot_password') }}" class="link">Resend OTP</a>
+            <button id="resendOtpBtn" class="link" style="display:none;" onclick="resendOtp()">Resend OTP</button>
             <a href="{{ url_for('login') }}" class="link">Back to Login</a>
         </div>
+
+        <div id="timerDisplay" class="info-text" style="display:none;">You can request a new OTP in <span id="countdown"></span> seconds</div>
     </div>
+
+    <script>
+        let attemptCount = 0;  // Track OTP attempts
+        const maxAttempts = 3; // Max attempts before muting input
+        let countdownTimer; // Timer variable to control countdown
+        let remainingTime = 60; // Countdown time in seconds (1 minute)
+
+        document.getElementById('otpForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            // Get the OTP input value
+            const otpInput = document.getElementById('otp').value;
+            
+            // Simulate OTP verification (replace with your backend verification logic)
+            const isOtpValid = otpInput === '123456'; // Replace with your actual verification logic
+
+            if (isOtpValid) {
+                // Show password fields
+                document.getElementById('passwordFields').style.display = 'block';
+                document.getElementById('otp').style.display = 'none';  // Hide OTP input
+            } else {
+                // Increment the attempt count
+                attemptCount++;
+
+                if (attemptCount >= maxAttempts) {
+                    // Mute OTP input after max attempts
+                    document.getElementById('otp').disabled = true;
+                    document.getElementById('timerDisplay').style.display = 'block'; // Show timer message
+                    startCountdown(); // Start the countdown for resend
+                    document.getElementById('resendOtpBtn').style.display = 'inline-block'; // Show resend button
+                } else {
+                    alert('Invalid OTP. Attempts left: ' + (maxAttempts - attemptCount));
+                }
+            }
+        });
+
+        function startCountdown() {
+            countdownTimer = setInterval(function() {
+                remainingTime--;
+                document.getElementById('countdown').innerText = remainingTime;
+
+                if (remainingTime <= 0) {
+                    clearInterval(countdownTimer); // Stop countdown
+                    document.getElementById('resendOtpBtn').disabled = false; // Enable resend button
+                    document.getElementById('timerDisplay').style.display = 'none'; // Hide timer message
+                }
+            }, 1000);
+        }
+
+        function resendOtp() {
+            // Reset the attempt count and countdown
+            attemptCount = 0;
+            remainingTime = 60;
+            document.getElementById('otp').disabled = false; // Enable OTP input
+            document.getElementById('resendOtpBtn').style.display = 'none'; // Hide resend button
+
+            // Simulate OTP resend (send new OTP via backend)
+            alert('OTP has been resent!');
+        }
+    </script>
 </body>
 </html>
