@@ -23,10 +23,10 @@ class Config:
     OAUTH2_REDIRECT_URI = os.getenv('OAUTH2_REDIRECT_URI', 'http://127.0.0.1:5000/auth/google/callback')
 
     # Email Configuration
-    MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-    MAIL_PORT = os.getenv('MAIL_PORT', 465)
-    MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', False) == 'True'  # Convert to bool
-    MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', True) == 'True'   # Convert to bool
-    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
-    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER')
+    # Update Mail Configuration in Config class
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 465
+    MAIL_USE_SSL = True
+    MAIL_USERNAME = 'javidan.javadov@gmail.com'
+    MAIL_PASSWORD = 'euvb bfbf cqpk kvop'  # The app password you provided
+    MAIL_DEFAULT_SENDER = 'javidan.javadov@gmail.com'

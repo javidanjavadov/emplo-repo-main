@@ -5,6 +5,9 @@ import psycopg2
 import sqlite3
 from flask import Flask, redirect, url_for, render_template, request, session, flash
 from flask import Flask, g
+from flask_mail import Mail, Message
+import pyotp
+import re
 from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_bcrypt import Bcrypt
@@ -105,6 +108,13 @@ class VacationRequest:
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = app.config['SECRET_KEY']
+mail = Mail(app)
+MAX_OTP_ATTEMPTS = 3
+OTP_RESEND_TIME = 120  # 2 minutes in seconds
+OTP_VALID_DURATION = 600  # 10 minutes
+otp_storage = {}
+
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -157,7 +167,31 @@ def update_remaining_vacation_days(user_id, new_remaining_days):
     finally:
         cursor.close()  # Ensure the cursor is always closed
 
+def generate_secure_otp(email):
+    """Generate and store a time-based OTP"""
+    secret = pyotp.random_base32()
+    otp = pyotp.TOTP(secret, interval=OTP_VALID_DURATION).now()
+    otp_storage[email] = {
+        'secret': secret,
+        'attempts': 0,
+        'created_at': time(),
+        'last_attempt': None
+    }
+    return otp
 
+def send_otp_email(email, otp):
+    """Send OTP to user's email with security measures"""
+    msg = Message("Your Password Reset OTP",
+                  sender=app.config['MAIL_DEFAULT_SENDER'],
+                  recipients=[email])
+    msg.body = f"""Your OTP for password reset is: {otp}
+This OTP is valid for {OTP_VALID_DURATION//60} minutes.
+If you didn't request this, please contact support immediately."""
+    mail.send(msg)
+
+def is_valid_email(email):
+    """Basic email validation"""
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
 def get_user_remaining_vacation_days(user_id):
     db = get_db()  # Access the database
@@ -504,24 +538,87 @@ def check_user_roles():
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
+        email = request.form['email'].lower().strip()
+        
+        if not is_valid_email(email):
+            flash("Invalid email format", "danger")
+            return redirect(url_for('forgot_password'))
+        
+        user = get_user_by_email(email)
+        if not user:
+            flash("If this email exists, we'll send a reset link", "info")
+            return redirect(url_for('forgot_password'))
+        
+        # Rate limiting
+        otp_data = otp_storage.get(email, {})
+        if otp_data.get('last_attempt') and (time() - otp_data['last_attempt']) < OTP_RESEND_TIME:
+            flash("Please wait before requesting a new OTP", "warning")
+            return redirect(url_for('forgot_password'))
+        
+        otp = generate_secure_otp(email)
+        try:
+            send_otp_email(email, otp)
+            flash("OTP sent to your email", "success")
+            session['reset_email'] = email
+            return redirect(url_for('verify_otp'))
+        except Exception as e:
+            app.logger.error(f"Error sending OTP: {str(e)}")
+            flash("Error sending OTP. Please try again.", "danger")
+            return redirect(url_for('forgot_password'))
+    
+    return render_template('forgot_password.html')
+
+
+@app.route('/verify-otp', methods=['GET', 'POST'])
+def verify_otp():
+    if 'reset_email' not in session:
+        return redirect(url_for('forgot_password'))
+    
+    email = session['reset_email']
+    otp_data = otp_storage.get(email, {})
+    
+    if request.method == 'POST':
+        user_otp = request.form['otp'].strip()
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
-
-        # Check if the passwords match
-        if new_password != confirm_password:
-            flash("Passwords do not match! Please try again.", "error")
-            return redirect(url_for('forgot_password'))
-
-        # If they match, proceed to update the password
-        hashed_password = generate_password_hash(new_password, method='pbkdf2:sha256')
-
-        # Update the password in the database (assuming you have a function for this)
-        # db.update_user_password(user_id, hashed_password)
         
-        flash("Your password has been successfully updated!", "success")
-        return redirect(url_for('login'))
+        # Security checks
+        if otp_data.get('attempts', 0) >= MAX_OTP_ATTEMPTS:
+            flash("Too many attempts. Please request a new OTP.", "danger")
+            return redirect(url_for('forgot_password'))
+        
+        if new_password != confirm_password:
+            flash("Passwords do not match", "danger")
+            return redirect(url_for('verify_otp'))
+        
+        # Validate OTP
+        totp = pyotp.TOTP(otp_data['secret'], interval=OTP_VALID_DURATION)
+        if not totp.verify(user_otp):
+            otp_storage[email]['attempts'] += 1
+            otp_storage[email]['last_attempt'] = time()
+            remaining_attempts = MAX_OTP_ATTEMPTS - otp_storage[email]['attempts']
+            flash(f"Invalid OTP. {remaining_attempts} attempts remaining", "danger")
+            return redirect(url_for('verify_otp'))
+        
+        # OTP validated successfully
+        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        if update_user_password(email, hashed_password):
+            del otp_storage[email]
+            session.pop('reset_email', None)
+            flash("Password updated successfully!", "success")
+            return redirect(url_for('login'))
+        else:
+            flash("Password update failed. Please try again.", "danger")
+    
+    return render_template('verify_otp.html')
 
-    return render_template('forgot_password.html')
+def update_user_password(email, new_password):
+    """Update password in database"""
+    return execute_query(
+        """UPDATE "user" SET password = %s WHERE email = %s""",
+        (new_password, email),
+        commit=True
+    )
 
 @app.route('/update_user_role', methods=['POST'])
 @login_required
