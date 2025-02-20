@@ -569,7 +569,7 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 
-@app.route('/verify-otp', methods=['GET', 'POST'])
+@app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
     if 'reset_email' not in session:
         return redirect(url_for('forgot_password'))
