@@ -6,7 +6,7 @@ load_dotenv()
 
 class Config:
     # Dynamically generate a new SECRET_KEY on each run
-    SECRET_KEY = secrets.token_hex(32)  # Generates a new secret key every time
+    SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))  # Use environment variable
     
     # Database Configuration
     DATABASE_NAME = os.getenv('DATABASE_NAME', 'smart_water_manage')

@@ -109,6 +109,11 @@ app.secret_key = app.config['SECRET_KEY']
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
+
 # Extensions Setup
 oauth = OAuth(app)
 bcrypt = Bcrypt(app)
