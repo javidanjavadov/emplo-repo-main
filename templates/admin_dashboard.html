@@ -114,6 +114,37 @@
             padding: 12px 15px;
             border: 1px solid rgba(0,0,0,0.1);
         }
+        .table th {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 500;
+    white-space: nowrap; /* Prevents wrapping of header text */
+    padding: 12px 15px; /* Adjust padding if necessary */
+}
+
+.container {
+        max-width: 100% !important;
+        margin-top: 30px;
+        padding-left: 25px;
+        padding-right: 25px;
+    }
+
+    .table {
+        width: 100% !important;
+        table-layout: auto;
+    }
+
+    .table td, .table th {
+        white-space: nowrap;
+        padding: 12px 15px;
+    }
+
+    /* Optional: Set minimum widths for problematic columns */
+    .table td:nth-child(1), /* Email */
+    .table td:nth-child(6) { /* Reason */
+        min-width: 200px;
+    }
+
     </style>
 </head>
 <body>
