@@ -106,7 +106,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = app.config['SECRET_KEY']
 
-app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Extensions Setup
@@ -243,15 +243,12 @@ def format_date_filter(date):
 def get_db_connection():
     try:
         return psycopg2.connect(
-            dbname=app.config['DATABASE_NAME'],
-            user=app.config['DATABASE_USER'],
-            password=app.config['DATABASE_PASSWORD'],
-            host=app.config['DATABASE_HOST'],
-            port=app.config['DATABASE_PORT']
+            os.environ.get('DATABASE_URL')  # Use the environment variable here
         )
     except psycopg2.Error as e:
         print(f"Database connection error: {e}")
         return None
+
 
 def execute_query(query, params=(), fetchall=False, commit=False):
     conn = get_db_connection()
