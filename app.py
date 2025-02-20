@@ -106,6 +106,9 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = app.config['SECRET_KEY']
 
+app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 # Extensions Setup
 oauth = OAuth(app)
 bcrypt = Bcrypt(app)
@@ -223,13 +226,8 @@ def save_vacation_request(user_id, start_date, end_date, leave_reason):
 
 def get_db():
     if 'db' not in g:
-        g.db = psycopg2.connect(
-            dbname='smart_water_manage',
-            user='superuser',
-            password='Qwerty@34',
-            host='localhost',
-            port='5432'
-        )
+        # Use DATABASE_URL directly from environment
+        g.db = psycopg2.connect(Config.DATABASE_URL)
     return g.db
 
 @app.teardown_appcontext
@@ -1056,4 +1054,9 @@ def planner_dashboard():
     return render_template('planner_dashboard.html')
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Koyeb-specific host/port configuration
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+        debug=app.config['DEBUG']
+    )
