@@ -5,13 +5,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    # Secret key - Railway ya da local için
+    # Secret key
     SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
-    # Railway genelde tam bağlantı URL'si veriyor, bunu kullan:
+    # Railway connection
     DATABASE_URL = os.getenv('DATABASE_URL')
 
-    # Eğer DATABASE_URL yoksa fallback olarak local ayarlar (dev ortamı için)
+    # Always define fallback attributes
+    DATABASE_NAME = None
+    DATABASE_USER = None
+    DATABASE_PASSWORD = None
+    DATABASE_HOST = None
+    DATABASE_PORT = None
+
     if not DATABASE_URL:
         DATABASE_NAME = os.getenv('DATABASE_NAME', 'smart_water_manage')
         DATABASE_USER = os.getenv('DATABASE_USER', 'postgres')
@@ -31,5 +37,5 @@ class Config:
     MAIL_PORT = 465
     MAIL_USE_SSL = True
     MAIL_USERNAME = os.getenv('MAIL_USERNAME', 'javidan.javadov@gmail.com')
-    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')  # Bu app password olarak env'den gelsin
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = MAIL_USERNAME
