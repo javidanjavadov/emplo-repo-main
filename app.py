@@ -289,18 +289,10 @@ def format_date_filter(date):
 
 def get_db_connection():
     try:
-        return psycopg2.connect(
-            dbname=Config.DATABASE_NAME,
-            user=Config.DATABASE_USER,
-            password=Config.DATABASE_PASSWORD,
-            host=Config.DATABASE_HOST,
-            port=Config.DATABASE_PORT
-        )
+        return psycopg2.connect(os.environ.get("DATABASE_URL"))
     except psycopg2.Error as e:
         print(f"Database connection error: {e}")
         return None
-
-
 
 def execute_query(query, params=(), fetchall=False, commit=False):
     conn = get_db_connection()
@@ -318,7 +310,6 @@ def execute_query(query, params=(), fetchall=False, commit=False):
                     return result[0] if result else None
                 return True
 
-            # For SELECT queries, fetch results based on the flag
             result = cursor.fetchall() if fetchall else cursor.fetchone()
             return result if result else None
     except psycopg2.Error as e:
@@ -327,8 +318,6 @@ def execute_query(query, params=(), fetchall=False, commit=False):
         return None
     finally:
         conn.close()
-            
-
 def get_user_by_email(email):
     query = """SELECT id, email, password, name, roles, is_admin, remaining_vacation_days 
                FROM "user" WHERE email = %s"""
