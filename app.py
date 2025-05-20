@@ -19,6 +19,8 @@ from config import Config
 from werkzeug.security import generate_password_hash
 from time import time
 from werkzeug.middleware.proxy_fix import ProxyFix
+from config import Config
+from sqlalchemy import create_engine
 
 
 VALID_ROLES = ['Employee', 'Manager']
@@ -110,6 +112,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = app.config['SECRET_KEY']
 mail = Mail(app)
+engine = create_engine(Config.DATABASE_URL)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 MAX_OTP_ATTEMPTS = 3
 OTP_RESEND_TIME = 120  # 2 minutes in seconds
