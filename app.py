@@ -14,7 +14,7 @@ from flask_bcrypt import Bcrypt
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from config import Config
 from werkzeug.security import generate_password_hash
 from time import time
@@ -116,7 +116,7 @@ otp_storage = {}
 
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config.update(
@@ -143,7 +143,7 @@ google = oauth.register(
 def load_user(user_id):
     user = get_user_by_id(user_id)
     if user:
-        print(f"User loaded: {user}, Roles: {user.roles}")
+        print(f"User loaded: {user.id}, Roles: {user.roles}")
     else:
         print(f"User not found with id: {user_id}")
     return user
@@ -267,9 +267,15 @@ def save_vacation_request(user_id, start_date, end_date, leave_reason):
 
 def get_db():
     if 'db' not in g:
-        # Use DATABASE_URL directly from environment
-        g.db = psycopg2.connect(Config.DATABASE_URL)
+        g.db = psycopg2.connect(
+            dbname=Config.DATABASE_NAME,
+            user=Config.DATABASE_USER,
+            password=Config.DATABASE_PASSWORD,
+            host=Config.DATABASE_HOST,
+            port=Config.DATABASE_PORT
+        )
     return g.db
+
 
 @app.teardown_appcontext
 def close_db(error):
@@ -284,11 +290,16 @@ def format_date_filter(date):
 def get_db_connection():
     try:
         return psycopg2.connect(
-            os.environ.get('DATABASE_URL')  # Use the environment variable here
+            dbname=Config.DATABASE_NAME,
+            user=Config.DATABASE_USER,
+            password=Config.DATABASE_PASSWORD,
+            host=Config.DATABASE_HOST,
+            port=Config.DATABASE_PORT
         )
     except psycopg2.Error as e:
         print(f"Database connection error: {e}")
         return None
+
 
 
 def execute_query(query, params=(), fetchall=False, commit=False):
@@ -357,8 +368,6 @@ def create_user(email, name, password, roles=None, is_admin=False):
         flash("Email already in use. Please try another one.", 'danger')
         return None
 
-    print(f"Debug: Storing hashed password for {email}: {password}")
-
     query = """INSERT INTO "user" (email, name, password, roles, is_admin)
                VALUES (%s, %s, %s, %s, %s) RETURNING id"""
     
@@ -375,13 +384,18 @@ def parse_db_array(value):
     return value or []
 
 def create_jwt_token(user):
-    return jwt.encode({
+    # timezone-aware UTC now
+    now = datetime.now(timezone.utc)
+
+    payload = {
         'email': user.email,
         'roles': user.roles,
         'sub': str(user.id),
-        'iat': datetime.utcnow(),
-        'exp': datetime.utcnow() + timedelta(hours=1)
-    }, app.config['SECRET_KEY'], algorithm='HS256')
+        'iat': now,
+        'exp': now + timedelta(hours=1)
+    }
+    return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
+
 
 
 def get_all_vacation_requests():
@@ -517,7 +531,7 @@ def get_all_users():
 
 
 def get_dashboard_route(user):
-    if 'Manager' in user.roles:
+    if 'Manager' in user.roles or 'Admin' in user.roles or user.is_admin:
         return 'admin_dashboard'
     elif 'Employee' in user.roles:
         return 'operator_dashboard'
@@ -530,11 +544,15 @@ def get_dashboard_route(user):
 @app.before_request
 def check_user_roles():
     if current_user.is_authenticated:
-        print(f"User roles: {current_user.roles}")
-        if request.endpoint == 'admin_dashboard' and 'Manager' not in current_user.roles:
-            print("Access denied. Redirecting to login.")
+        # AdminDashboard erişimi hem Manager hem Admin rolüne ya da is_admin=True'ya izin versin
+        if request.endpoint == 'admin_dashboard' and not (
+            'Manager' in current_user.roles or
+            'Admin' in current_user.roles or
+            current_user.is_admin
+        ):
             flash("Access denied.", 'danger')
             return redirect(url_for('login'))
+
 
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
@@ -893,10 +911,6 @@ def login():
         user = get_user_by_email(email)
 
         if user:
-            print(f"Debug: Retrieved user {user.email}")  # Debugging line
-            print(f"Debug: Stored Hashed Password: {user.password}")  # Debugging line
-            print(f"Debug: Entered Password: {password}")  # Debugging line
-            
             # Check password
             if bcrypt.check_password_hash(user.password, password):
                 print("Password is correct!")  # Debugging line
@@ -919,7 +933,7 @@ def login():
 @app.route('/admin-dashboard')
 @login_required
 def admin_dashboard():
-    if 'Manager' not in current_user.roles:
+    if not ( 'Manager' in current_user.roles or 'Admin' in current_user.roles or current_user.is_admin ):
         flash('Access denied', 'danger')
         return redirect(url_for('login'))
 
@@ -961,7 +975,7 @@ def admin_dashboard():
 @app.route('/approve_vacation', methods=['POST'])
 @login_required
 def approve_vacation():
-    if 'Manager' not in current_user.roles:
+    if 'Manager' not in current_user.roles and 'Admin' not in current_user.roles:
         flash('Access denied', 'danger')
         return redirect(url_for('login'))
     
@@ -977,10 +991,10 @@ def approve_vacation():
 @app.route('/reject_vacation', methods=['POST'])
 @login_required
 def reject_vacation():
-    if 'Manager' not in current_user.roles:
+    if 'Manager' not in current_user.roles and 'Admin' not in current_user.roles:
         flash('Access denied', 'danger')
         return redirect(url_for('login'))
-    
+
     request_id = request.form.get('request_id')
     execute_query(
         "UPDATE vacation_requests SET status = 'Rejected' WHERE id = %s",
@@ -989,6 +1003,7 @@ def reject_vacation():
     )
     flash('Request rejected', 'success')
     return redirect(url_for('admin_dashboard'))
+
 
 
 
