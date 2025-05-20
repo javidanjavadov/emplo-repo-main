@@ -151,6 +151,7 @@ def load_user(user_id):
 app.jinja_env.globals['current_user'] = current_user
 
 
+
 def update_remaining_vacation_days(user_id, new_remaining_days):
     db = get_db()  # Access the database
     cursor = db.cursor()
