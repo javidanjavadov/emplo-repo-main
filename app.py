@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from config import Config
 from werkzeug.security import generate_password_hash
 from time import time
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 VALID_ROLES = ['Employee', 'Manager']
@@ -109,6 +110,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = app.config['SECRET_KEY']
 mail = Mail(app)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 MAX_OTP_ATTEMPTS = 3
 OTP_RESEND_TIME = 120  # 2 minutes in seconds
 OTP_VALID_DURATION = 600  # 10 minutes
@@ -120,9 +122,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = Config.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=True,  # HTTPS üçün, lokalda lazım deyil
+    SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax'
 )
+
 
 # Extensions Setup
 oauth = OAuth(app)
@@ -693,10 +697,10 @@ def home():
 def google_auth():
     nonce = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     session['oauth_nonce'] = nonce
-    print(f"[DEBUG] Config redirect URI: {app.config.get('OAUTH2_REDIRECT_URI')}")
-    redirect_uri = url_for('google_callback', _external=True)
-    print(f"[DEBUG] Redirect URI used for Google OAuth: {redirect_uri}")  # Debug üçün çap
-    
+
+    redirect_uri = url_for('google_callback', _external=True, _scheme='https')
+    print(f"[DEBUG] Redirect URI used for Google OAuth: {redirect_uri}")
+
     return google.authorize_redirect(redirect_uri=redirect_uri, nonce=nonce)
 
 @app.route('/create_vacation_request', methods=['POST'])
