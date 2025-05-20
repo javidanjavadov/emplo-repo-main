@@ -693,7 +693,11 @@ def home():
 def google_auth():
     nonce = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     session['oauth_nonce'] = nonce
-    return google.authorize_redirect(redirect_uri=url_for('google_callback', _external=True), nonce=nonce)
+    print(f"[DEBUG] Config redirect URI: {app.config.get('OAUTH2_REDIRECT_URI')}")
+    redirect_uri = url_for('google_callback', _external=True)
+    print(f"[DEBUG] Redirect URI used for Google OAuth: {redirect_uri}")  # Debug üçün çap
+    
+    return google.authorize_redirect(redirect_uri=redirect_uri, nonce=nonce)
 
 @app.route('/create_vacation_request', methods=['POST'])
 @login_required
