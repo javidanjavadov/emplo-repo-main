@@ -233,7 +233,7 @@ def calculate_remaining_vacation_days(user_id):
 
     # Query to get approved vacation requests for the given user_id
     cursor.execute(
-        "SELECT start_date, end_date FROM vacation_requests WHERE user_id = %s AND status = %s",
+        "SELECT start_date, end_date FROM vacation_request WHERE user_id = %s AND status = %s",
         (user_id, "Approved")
     )
     
@@ -259,7 +259,7 @@ def save_vacation_request(user_id, start_date, end_date, leave_reason):
     # Insert the vacation request into the database
     try:
         cursor.execute(
-    "INSERT INTO vacation_requests (user_id, start_date, end_date, leave_reason, status) VALUES (%s, %s, %s, %s, %s)",
+    "INSERT INTO vacation_requess (user_id, start_date, end_date, leave_reason, status) VALUES (%s, %s, %s, %s, %s)",
     (user_id, start_date, end_date, leave_reason, "Pending")
 )
 
@@ -397,7 +397,7 @@ def create_jwt_token(user):
 
 def get_all_vacation_requests():
     query = """SELECT id, user_id, start_date, end_date, leave_reason, status 
-               FROM vacation_requests"""
+               FROM vacation_request"""
     results = execute_query(query, fetchall=True)
     return [dict(zip(['id', 'user_id', 'start_date', 'end_date', 'leave_reason', 'status'], row)) for row in results]
 
@@ -417,7 +417,7 @@ def get_taken_vacation_days(user_id):
     cursor = connection.cursor()
     cursor.execute("""
         SELECT SUM(end_date::DATE - start_date::DATE)
-        FROM vacation_requests
+        FROM vacation_request
         WHERE user_id = %s AND status = 'Approved'
     """, (user_id,))
     result = cursor.fetchone()
@@ -435,7 +435,7 @@ def create_vacation_request(user_id, start_date, end_date, reason):
 
         # Insert the vacation request into the database
         cursor.execute("""
-            INSERT INTO vacation_requests (user_id, start_date, end_date, reason, status)
+            INSERT INTO vacation_request (user_id, start_date, end_date, reason, status)
             VALUES (%s, %s, %s, %s, %s)
         """, (user_id, start_date, end_date, reason, 'Pending'))
 
@@ -452,7 +452,7 @@ def create_vacation_request_in_db(user_id, start_date, end_date, reason):
 
         # Insert the vacation request into the database
         cursor.execute("""
-            INSERT INTO vacation_requests (user_id, start_date, end_date, reason, status)
+            INSERT INTO vacation_request (user_id, start_date, end_date, reason, status)
             VALUES (%s, %s, %s, %s, %s)
         """, (user_id, start_date, end_date, reason, 'Pending'))
 
@@ -471,7 +471,7 @@ def update_vacation_days(user_id, days):
 
 def get_vacation_requests_by_user_id(user_id):
     query = """SELECT id, user_id, start_date, end_date, leave_reason, status 
-               FROM vacation_requests WHERE user_id = %s"""
+               FROM vacation_request WHERE user_id = %s"""
     results = execute_query(query, (user_id,), fetchall=True)
     return [dict(zip(['id', 'user_id', 'start_date', 'end_date', 'leave_reason', 'status'], row)) for row in results]
 
@@ -479,7 +479,7 @@ def get_vacation_requests_by_user_id(user_id):
 
 def get_vacation_request_by_id(request_id):
     query = """SELECT id, user_id, start_date, end_date, leave_reason, status 
-               FROM vacation_requests WHERE id = %s"""
+               FROM vacation_request WHERE id = %s"""
     result = execute_query(query, (request_id,))
     if result:
         return dict(zip(['id', 'user_id', 'start_date', 'end_date', 'leave_reason', 'status'], result))
@@ -487,7 +487,7 @@ def get_vacation_request_by_id(request_id):
 
 
 def delete_vacation_request(request_id):
-    query = """DELETE FROM vacation_requests WHERE id = %s"""
+    query = """DELETE FROM vacation_request WHERE id = %s"""
     return execute_query(query, (request_id,), commit=True)
 
 def update_user_vacation_days(user_id, delta):
@@ -772,7 +772,7 @@ def cancel_request(request_id):
         return redirect(url_for('operator_dashboard'))
     
     query = """SELECT id, user_id, start_date, end_date, leave_reason, status 
-               FROM vacation_requests WHERE id = %s"""
+               FROM vacation_request WHERE id = %s"""
     result = execute_query(query, (request_id,))
 
     if not result:
@@ -792,7 +792,7 @@ def cancel_request(request_id):
         flash("This request has already been canceled.", 'error')
         return redirect(url_for('operator_dashboard'))
 
-    update_query = """UPDATE vacation_requests SET status = 'Cancelled' WHERE id = %s"""
+    update_query = """UPDATE vacation_request SET status = 'Cancelled' WHERE id = %s"""
     execute_query(update_query, (request_id,), commit=True)
 
     # Set last cancel time to enforce cooldown only after cancellation
@@ -812,7 +812,7 @@ def has_pending_request(user_id):
     db = get_db()
     cursor = db.cursor()
     cursor.execute(
-        "SELECT * FROM vacation_requests WHERE user_id = %s AND status = %s",
+        "SELECT * FROM vacation_request WHERE user_id = %s AND status = %s",
         (user_id, 'Pending')
     )
     pending_request = cursor.fetchone()
@@ -951,7 +951,7 @@ def admin_dashboard():
             vr.leave_reason,
             vr.status,
             (vr.end_date - vr.start_date) + 1 AS total_days
-        FROM vacation_requests vr
+        FROM vacation_request vr
         INNER JOIN "user" u ON vr.user_id = u.id  -- Use quotes for reserved keywords
         ORDER BY vr.start_date DESC;
         """
@@ -983,7 +983,7 @@ def approve_vacation():
     
     request_id = request.form.get('request_id')
     execute_query(
-        "UPDATE vacation_requests SET status = 'Approved' WHERE id = %s",
+        "UPDATE vacation_request SET status = 'Approved' WHERE id = %s",
         (request_id,),
         commit=True
     )
@@ -999,7 +999,7 @@ def reject_vacation():
 
     request_id = request.form.get('request_id')
     execute_query(
-        "UPDATE vacation_requests SET status = 'Rejected' WHERE id = %s",
+        "UPDATE vacation_request SET status = 'Rejected' WHERE id = %s",
         (request_id,),
         commit=True
     )
@@ -1035,7 +1035,7 @@ def operator_dashboard():
 
         query = """
         SELECT start_date, end_date, leave_reason, status, id 
-        FROM vacation_requests 
+        FROM vacation_request 
         WHERE user_id = %s
         ORDER BY start_date DESC
         """
