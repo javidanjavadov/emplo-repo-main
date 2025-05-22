@@ -527,6 +527,7 @@ def get_all_users():
     return []
 
 
+
 def get_dashboard_route(user):
     if 'Manager' in user.roles or 'Admin' in user.roles or user.is_admin:
         return 'admin_dashboard'
