@@ -905,6 +905,7 @@ def signup():
 
     
 @app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for(get_dashboard_route(current_user)))
@@ -912,18 +913,23 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+
+        # Debugging üçün inputları konsola yazdır:
+        print(f"Received login attempt with email: {email} and password: {password}")
+
         user = get_user_by_email(email)
 
         if user:
-            # Check password
             if bcrypt.check_password_hash(user.password, password):
-                print("Password is correct!")  # Debugging line
+                print("Password is correct!")  # Şifrə uyğun gəlir
                 login_user(user)
                 session['user_token'] = create_jwt_token(user)
                 return redirect(url_for(get_dashboard_route(user)))
             else:
-                print("Password does not match!")  # Debugging line
-        
+                print("Password does not match!")  # Şifrə uyğun gəlmir
+        else:
+            print("User not found!")
+
         flash('Invalid email or password', 'danger')
 
     return render_template('login.html')
