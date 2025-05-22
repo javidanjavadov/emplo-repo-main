@@ -259,7 +259,7 @@ def save_vacation_request(user_id, start_date, end_date, leave_reason):
     # Insert the vacation request into the database
     try:
         cursor.execute(
-    "INSERT INTO vacation_requess (user_id, start_date, end_date, leave_reason, status) VALUES (%s, %s, %s, %s, %s)",
+    "INSERT INTO vacation_request (user_id, start_date, end_date, leave_reason, status) VALUES (%s, %s, %s, %s, %s)",
     (user_id, start_date, end_date, leave_reason, "Pending")
 )
 
