@@ -822,10 +822,6 @@ def has_pending_request(user_id):
     return pending_request is not None
 
 
-
-# Renaming the helper function to avoid conflict
-
-
 @app.route('/auth/google/callback')
 def google_callback():
     try:
