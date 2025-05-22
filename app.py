@@ -706,6 +706,8 @@ def google_auth():
 
     return google.authorize_redirect(redirect_uri=redirect_uri, nonce=nonce)
 
+
+
 @app.route('/create_vacation_request', methods=['POST'])
 @login_required
 def create_vacation_request():
