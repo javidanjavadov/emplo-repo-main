@@ -758,6 +758,7 @@ def create_vacation_request():
     return redirect(url_for('operator_dashboard'))
 
 
+
 @app.route('/cancel_request/<int:request_id>', methods=['POST'])
 @login_required
 def cancel_request(request_id):
