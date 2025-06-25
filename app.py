@@ -649,7 +649,7 @@ def verify_otp():
         show_password_form = True
 
     # Buraya sadece gerekli flag’i gönderiyoruz
-    return render_template('verify_otp.html', otp_verified=False)
+    return render_template("verify_otp.html", otp_verified=session.get("otp_verified", False))
 
 
 

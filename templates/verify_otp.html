@@ -156,18 +156,15 @@
     const resendBtn = document.getElementById('resendOtpBtn');
     const otpForm = document.getElementById('otpForm');
     const passwordForm = document.getElementById('passwordForm');
-    const isOtpVerified = {{ otp_verified|default(false)|string|lower }};
+    const isOtpVerified = {{ otp_verified | tojson | safe }};
 
     const maxAttempts = 3;
     const cooldownTime = 60;
     let attempts = parseInt(localStorage.getItem('otpAttempts')) || 0;
     let lastSentTime = parseInt(localStorage.getItem('lastOtpSentTime')) || 0;
-
     let countdownInterval = null;
 
     function updateButtonState() {
-        if (!resendBtn) return;
-
         const currentTime = Math.floor(Date.now() / 1000);
         const timeDiff = currentTime - lastSentTime;
 
@@ -185,9 +182,7 @@
 
             clearInterval(countdownInterval);
             countdownInterval = setInterval(() => {
-                const current = Math.floor(Date.now() / 1000);
-                const remaining = cooldownTime - (current - lastSentTime);
-
+                const remaining = cooldownTime - (Math.floor(Date.now() / 1000) - lastSentTime);
                 if (remaining > 0) {
                     resendBtn.innerText = `Resend OTP in ${remaining}s`;
                 } else {
@@ -227,22 +222,19 @@
                     alert('A new OTP has been sent to your email.');
                     attempts++;
                     lastSentTime = Math.floor(Date.now() / 1000);
-
                     localStorage.setItem('otpAttempts', attempts);
                     localStorage.setItem('lastOtpSentTime', lastSentTime);
-
                     updateButtonState();
                 } else {
                     alert(result.message || 'Failed to resend OTP. Please try again.');
                 }
             } catch (error) {
-                console.error(error);
                 alert('An error occurred while resending OTP.');
             }
         });
     }
 
-    if (isOtpVerified === 'true') {
+    if (isOtpVerified) {
         otpForm.style.display = 'none';
         passwordForm.style.display = 'block';
     } else {
