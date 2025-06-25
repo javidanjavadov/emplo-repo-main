@@ -160,7 +160,7 @@
     const isOtpVerified = {{ otp_verified|default(false)|tojson | safe }};
 
     const maxAttempts = 3;
-    const cooldownTime = 60; // saniye
+    const cooldownTime = 60;
     let attempts = parseInt(localStorage.getItem('otpAttempts')) || 0;
     let lastSentTime = parseInt(localStorage.getItem('lastOtpSentTime')) || 0;
 
@@ -184,7 +184,7 @@
             let remainingTime = cooldownTime - timeDiff;
             resendBtn.innerText = `Resend OTP in ${remainingTime}s`;
 
-            clearInterval(countdownInterval); // tekrar çalışmayı engelle
+            clearInterval(countdownInterval);
             countdownInterval = setInterval(() => {
                 const current = Math.floor(Date.now() / 1000);
                 const remaining = cooldownTime - (current - lastSentTime);
@@ -243,7 +243,6 @@
         });
     }
 
-    // OTP vs Password form kontrolü
     if (isOtpVerified) {
         otpForm.style.display = 'none';
         passwordForm.style.display = 'block';
@@ -252,7 +251,7 @@
         passwordForm.style.display = 'none';
     }
 
-    updateButtonState(); // sayfa yüklendiğinde buton durumu ayarla
+    updateButtonState();
 </script>
 
 </body>
