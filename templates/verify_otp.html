@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Verify OTP</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
         body {
             background-color: #f7f7f7;
@@ -16,7 +16,6 @@
             margin: 0;
             padding: 0;
         }
-
         .form-container {
             background-color: #fff;
             padding: 2.5rem;
@@ -26,12 +25,10 @@
             max-width: 400px;
             text-align: center;
         }
-
         h2 {
             color: #2CA58D;
             margin-bottom: 1.5rem;
         }
-
         input {
             width: 100%;
             padding: 0.9rem;
@@ -40,11 +37,9 @@
             border-radius: 8px;
             font-size: 1rem;
         }
-
         input:focus {
             border-color: #2CA58D;
         }
-
         .button {
             background-color: #2CA58D;
             color: #fff;
@@ -56,11 +51,9 @@
             font-size: 1rem;
             transition: background 0.3s;
         }
-
         .button:hover {
             background-color: #238776;
         }
-
         .alert {
             padding: 0.8rem;
             border-radius: 8px;
@@ -68,51 +61,23 @@
             font-size: 0.9rem;
             display: block;
         }
-
         .alert-danger {
             background-color: #f44336;
             color: white;
         }
-
         .alert-success {
             background-color: #4CAF50;
             color: white;
         }
-
         .link {
             display: block;
             margin-top: 1rem;
             color: #2CA58D;
             text-decoration: none;
         }
-
         .link:hover {
             text-decoration: underline;
         }
-
-        .resend-button {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            margin-top: 1rem;
-            background-color: #FFA500;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: background 0.3s;
-        }
-
-        .resend-button:hover {
-            background-color: #FF8C00;
-        }
-
-        .resend-button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-
         .back-link {
             color: #2CA58D;
             text-decoration: none;
@@ -120,7 +85,6 @@
             display: block;
             margin-top: 0.5rem;
         }
-
         .back-link:hover {
             text-decoration: underline;
         }
@@ -139,111 +103,33 @@
         {% endwith %}
 
         <form id="otpForm" method="POST" action="{{ url_for('verify_otp') }}">
-            <input type="text" name="otp" placeholder="Enter 6-digit OTP" value="{{ request.form.get('otp', '') }}" required>
+            <input type="text" name="otp" placeholder="Enter 6-digit OTP" value="{{ request.form.get('otp', '') }}" required />
             <button type="submit" class="button">Verify OTP</button>
         </form>
 
         <form id="passwordForm" method="POST" action="{{ url_for('verify_otp') }}" style="display: none;">
-            <input type="password" name="new_password" placeholder="New Password" required>
-            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+            <input type="password" name="new_password" placeholder="New Password" required />
+            <input type="password" name="confirm_password" placeholder="Confirm Password" required />
             <button type="submit" class="button">Reset Password</button>
         </form>
 
         <a href="{{ url_for('login') }}" class="link back-link">Back to Login</a>
     </div>
 
-<script>
-    const resendBtn = document.getElementById('resendOtpBtn');
-    const otpForm = document.getElementById('otpForm');
-    const passwordForm = document.getElementById('passwordForm');
-    const isOtpVerified = {{ otp_verified | tojson | safe }};
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const otpForm = document.getElementById('otpForm');
+            const passwordForm = document.getElementById('passwordForm');
+            const isOtpVerified = {{ otp_verified | tojson | safe }};
 
-    const maxAttempts = 3;
-    const cooldownTime = 60;
-    let attempts = parseInt(localStorage.getItem('otpAttempts')) || 0;
-    let lastSentTime = parseInt(localStorage.getItem('lastOtpSentTime')) || 0;
-    let countdownInterval = null;
-
-    function updateButtonState() {
-        const currentTime = Math.floor(Date.now() / 1000);
-        const timeDiff = currentTime - lastSentTime;
-
-        if (attempts >= maxAttempts) {
-            resendBtn.innerText = 'Maximum attempts reached';
-            resendBtn.disabled = true;
-            clearInterval(countdownInterval);
-            return;
-        }
-
-        if (timeDiff < cooldownTime) {
-            resendBtn.disabled = true;
-            let remainingTime = cooldownTime - timeDiff;
-            resendBtn.innerText = `Resend OTP in ${remainingTime}s`;
-
-            clearInterval(countdownInterval);
-            countdownInterval = setInterval(() => {
-                const remaining = cooldownTime - (Math.floor(Date.now() / 1000) - lastSentTime);
-                if (remaining > 0) {
-                    resendBtn.innerText = `Resend OTP in ${remaining}s`;
-                } else {
-                    clearInterval(countdownInterval);
-                    resendBtn.innerText = 'Resend OTP';
-                    resendBtn.disabled = false;
-                }
-            }, 1000);
-        } else {
-            resendBtn.innerText = 'Resend OTP';
-            resendBtn.disabled = false;
-            clearInterval(countdownInterval);
-        }
-    }
-
-    if (resendBtn) {
-        resendBtn.addEventListener('click', async function(event) {
-            event.preventDefault();
-
-            if (attempts >= maxAttempts) {
-                alert('You have reached the maximum number of OTP requests.');
-                return;
-            }
-
-            try {
-                const response = await fetch('/resend_otp', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert('A new OTP has been sent to your email.');
-                    attempts++;
-                    lastSentTime = Math.floor(Date.now() / 1000);
-                    localStorage.setItem('otpAttempts', attempts);
-                    localStorage.setItem('lastOtpSentTime', lastSentTime);
-                    updateButtonState();
-                } else {
-                    alert(result.message || 'Failed to resend OTP. Please try again.');
-                }
-            } catch (error) {
-                alert('An error occurred while resending OTP.');
+            if (isOtpVerified) {
+                otpForm.style.display = 'none';
+                passwordForm.style.display = 'block';
+            } else {
+                otpForm.style.display = 'block';
+                passwordForm.style.display = 'none';
             }
         });
-    }
-
-    if (isOtpVerified) {
-        otpForm.style.display = 'none';
-        passwordForm.style.display = 'block';
-    } else {
-        otpForm.style.display = 'block';
-        passwordForm.style.display = 'none';
-    }
-
-    updateButtonState();
-</script>
-
+    </script>
 </body>
 </html>
