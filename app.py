@@ -591,40 +591,53 @@ def forgot_password():
 def verify_otp():
     if 'reset_email' not in session:
         return redirect(url_for('forgot_password'))
-    
+
     email = session['reset_email']
     otp_data = otp_storage.get(email, {})
-    otp_verified = False
-    
+    otp_verified = session.get('otp_verified', False)
+
     if request.method == 'POST':
         if 'otp' in request.form:
             user_otp = request.form['otp'].strip()
             stored_otp = otp_data.get('otp')
-            
+
+            # Expired OTP
+            if not stored_otp or time() - otp_data.get('created_at', 0) > OTP_VALID_DURATION:
+                flash("OTP has expired. Please request a new one.", "danger")
+                otp_storage.pop(email, None)
+                return redirect(url_for('forgot_password'))
+
+            # Too many failed attempts
+            if otp_data.get('attempts', 0) >= MAX_OTP_ATTEMPTS:
+                flash("Too many incorrect attempts. Please request a new OTP.", "danger")
+                otp_storage.pop(email, None)
+                return redirect(url_for('forgot_password'))
+
+            # Correct OTP
             if user_otp == stored_otp:
-                otp_verified = True
-                session['otp_verified'] = True  # Store verification in session
+                session['otp_verified'] = True
                 flash("OTP verified successfully!", "success")
-                return redirect(url_for('verify_otp'))  # Reload to show password form
+                return redirect(url_for('verify_otp'))
             else:
-                otp_data['attempts'] += 1
+                # Incorrect OTP
+                otp_data['attempts'] = otp_data.get('attempts', 0) + 1
+                otp_data['last_attempt'] = time()
+                otp_storage[email] = otp_data
                 flash("Invalid OTP. Please try again.", "danger")
-        
+
         elif 'new_password' in request.form and 'confirm_password' in request.form:
             if not session.get('otp_verified'):
                 flash("OTP verification required first", "danger")
                 return redirect(url_for('verify_otp'))
-            
+
             new_password = request.form['new_password']
             confirm_password = request.form['confirm_password']
 
             if new_password != confirm_password:
                 flash("Passwords do not match.", "danger")
             else:
-                # Update password logic
                 hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
                 if update_user_password(email, hashed_password):
-                    # Clear OTP data and session
                     otp_storage.pop(email, None)
                     session.pop('reset_email', None)
                     session.pop('otp_verified', None)
@@ -633,8 +646,6 @@ def verify_otp():
                 else:
                     flash("Password reset failed. Please try again.", "danger")
 
-    # Check if OTP was previously verified
-    otp_verified = session.get('otp_verified', False)
     return render_template('verify_otp.html', otp_verified=otp_verified)
 
 
