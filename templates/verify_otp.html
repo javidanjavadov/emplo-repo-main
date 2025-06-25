@@ -66,7 +66,7 @@
             border-radius: 8px;
             margin: 1rem 0;
             font-size: 0.9rem;
-            display: none;
+            display: block;
         }
 
         .alert-danger {
@@ -91,62 +91,58 @@
         }
 
         .resend-button {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    margin-top: 1rem;
-    background-color: #FFA500;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    text-decoration: none;
-    font-size: 0.9rem;
-    transition: background 0.3s;
-}
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            margin-top: 1rem;
+            background-color: #FFA500;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
 
-.resend-button:hover {
-    background-color: #FF8C00;
-}
+        .resend-button:hover {
+            background-color: #FF8C00;
+        }
 
-.resend-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
+        .resend-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
 
-.back-link {
-    color: #2CA58D;
-    text-decoration: none;
-    font-size: 0.9rem;
-    display: block;
-    margin-top: 0.5rem;
-}
+        .back-link {
+            color: #2CA58D;
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: block;
+            margin-top: 0.5rem;
+        }
 
-.back-link:hover {
-    text-decoration: underline;
-}
-
+        .back-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="form-container">
         <h2>Verify OTP</h2>
 
-        <!-- Flash messages for user feedback -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="alert alert-{{ messages[0][0] }}">
-                    {{ messages[0][1] }}
-                </div>
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
 
-        <!-- OTP Form -->
         <form id="otpForm" method="POST" action="{{ url_for('verify_otp') }}">
-            <input type="text" name="otp" placeholder="Enter 6-digit OTP" required>
+            <input type="text" name="otp" placeholder="Enter 6-digit OTP" value="{{ request.form.get('otp', '') }}" required>
             <button type="submit" class="button">Verify OTP</button>
         </form>
 
-        <!-- Password Reset Form (hidden initially) -->
         <form id="passwordForm" method="POST" action="{{ url_for('verify_otp') }}" style="display: none;">
             <input type="password" name="new_password" placeholder="New Password" required>
             <input type="password" name="confirm_password" placeholder="Confirm Password" required>
@@ -158,90 +154,77 @@
     </div>
 
     <script>
+        const resendBtn = document.getElementById('resendOtpBtn');
+        const maxAttempts = 3;
+        const cooldownTime = 60;
+        let attempts = parseInt(localStorage.getItem('otpAttempts')) || 0;
+        let lastSentTime = parseInt(localStorage.getItem('lastOtpSentTime')) || 0;
 
-    const resendBtn = document.getElementById('resendOtpBtn');
-    const maxAttempts = 3;
-    const cooldownTime = 60; // 1 minute
+        function updateButtonState() {
+            const currentTime = Math.floor(Date.now() / 1000);
+            const timeDiff = currentTime - lastSentTime;
 
-    let attempts = parseInt(localStorage.getItem('otpAttempts')) || 0;
-    let lastSentTime = parseInt(localStorage.getItem('lastOtpSentTime')) || 0;
-
-
-    function updateButtonState() {
-        const currentTime = Math.floor(Date.now() / 1000);
-        const timeDiff = currentTime - lastSentTime;
-
-        if (attempts >= maxAttempts) {
-            resendBtn.innerText = 'Maximum attempts reached';
-            resendBtn.disabled = true;
-        } else if (timeDiff < cooldownTime) {
-            resendBtn.disabled = true;
-            const remainingTime = cooldownTime - timeDiff;
-            resendBtn.innerText = `Resend OTP in ${remainingTime}s`;
-
-            const interval = setInterval(() => {
-                const newTimeDiff = Math.floor(Date.now() / 1000) - lastSentTime;
-                const newRemainingTime = cooldownTime - newTimeDiff;
-                if (newRemainingTime > 0) {
-                    resendBtn.innerText = `Resend OTP in ${newRemainingTime}s`;
-                } else {
-                    clearInterval(interval);
-                    resendBtn.innerText = 'Resend OTP';
-                    resendBtn.disabled = false;
-                }
-            }, 1000);
-        } else {
-            resendBtn.innerText = 'Resend OTP';
-            resendBtn.disabled = false;
-        }
-    }
-     // Resend OTP event
-     resendBtn.addEventListener('click', async function(event) {
-        event.preventDefault();
-        
-        // Check attempt limit
-        if (attempts >= maxAttempts) {
-            alert('You have reached the maximum number of OTP requests.');
-            return;
-        }
-
-        try {
-            const response = await fetch('/resend_otp', { method: 'POST' });
-            const result = await response.json();
-            
-            if (result.success) {
-                alert('New OTP has been sent!');
-                attempts++;
-                lastSentTime = Math.floor(Date.now() / 1000);
-
-                // Update localStorage
-                localStorage.setItem('otpAttempts', attempts);
-                localStorage.setItem('lastOtpSentTime', lastSentTime);
-
-                // Update button state
-                updateButtonState();
+            if (attempts >= maxAttempts) {
+                resendBtn.innerText = 'Maximum attempts reached';
+                resendBtn.disabled = true;
+            } else if (timeDiff < cooldownTime) {
+                resendBtn.disabled = true;
+                let remainingTime = cooldownTime - timeDiff;
+                resendBtn.innerText = `Resend OTP in ${remainingTime}s`;
+                const interval = setInterval(() => {
+                    const newRemainingTime = cooldownTime - (Math.floor(Date.now() / 1000) - lastSentTime);
+                    if (newRemainingTime > 0) {
+                        resendBtn.innerText = `Resend OTP in ${newRemainingTime}s`;
+                    } else {
+                        clearInterval(interval);
+                        resendBtn.innerText = 'Resend OTP';
+                        resendBtn.disabled = false;
+                    }
+                }, 1000);
             } else {
-                alert('Failed to resend OTP. Please try again.');
+                resendBtn.innerText = 'Resend OTP';
+                resendBtn.disabled = false;
             }
-        } catch (error) {
-            alert('Error resending OTP');
         }
-    });
 
-    // Initialize button state on page load
-    updateButtonState();
+        if (resendBtn) {
+            resendBtn.addEventListener('click', async function(event) {
+                event.preventDefault();
+                if (attempts >= maxAttempts) {
+                    alert('You have reached the maximum number of OTP requests.');
+                    return;
+                }
 
-        // Show Password Form if OTP is verified
+                try {
+                    const response = await fetch('/resend_otp', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert('A new OTP has been sent to your email.');
+                        attempts++;
+                        lastSentTime = Math.floor(Date.now() / 1000);
+                        localStorage.setItem('otpAttempts', attempts);
+                        localStorage.setItem('lastOtpSentTime', lastSentTime);
+                        updateButtonState();
+                    } else {
+                        alert('Failed to resend OTP. Please try again.');
+                    }
+                } catch (error) {
+                    alert('An error occurred while resending OTP.');
+                }
+            });
+        }
+
+        updateButtonState();
+
         const otpForm = document.getElementById('otpForm');
         const passwordForm = document.getElementById('passwordForm');
-    
-        // Check if OTP is verified from backend data
         const isOtpVerified = {{ otp_verified|tojson }};
+
         if (isOtpVerified) {
             otpForm.style.display = 'none';
             passwordForm.style.display = 'block';
         }
-    
     </script>
 </body>
 </html>
