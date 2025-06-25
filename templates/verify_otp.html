@@ -157,7 +157,7 @@
     const resendBtn = document.getElementById('resendOtpBtn');
     const otpForm = document.getElementById('otpForm');
     const passwordForm = document.getElementById('passwordForm');
-    const isOtpVerified = {{ otp_verified|default(false)|tojson | safe }};
+    const isOtpVerified = {{ otp_verified|default(false)|string|lower }};
 
     const maxAttempts = 3;
     const cooldownTime = 60;
@@ -243,7 +243,7 @@
         });
     }
 
-    if (isOtpVerified) {
+    if (isOtpVerified === 'true') {
         otpForm.style.display = 'none';
         passwordForm.style.display = 'block';
     } else {
