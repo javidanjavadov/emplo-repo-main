@@ -594,7 +594,7 @@ def verify_otp():
 
     email = session['reset_email']
     otp_data = otp_storage.get(email, {})
-    otp_verified = session.get('otp_verified', False)
+    show_password_form = False  # 🔧 bu flag sadece doğru OTP'de true olur
 
     if request.method == 'POST':
         if 'otp' in request.form:
@@ -616,8 +616,8 @@ def verify_otp():
             # Correct OTP
             if user_otp == stored_otp:
                 session['otp_verified'] = True
+                show_password_form = True  # ✅ Şifre formunu göster
                 flash("OTP verified successfully!", "success")
-                return redirect(url_for('verify_otp'))
             else:
                 # Incorrect OTP
                 otp_data['attempts'] = otp_data.get('attempts', 0) + 1
@@ -635,6 +635,7 @@ def verify_otp():
 
             if new_password != confirm_password:
                 flash("Passwords do not match.", "danger")
+                show_password_form = True  # Formu tekrar göster
             else:
                 hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
                 if update_user_password(email, hashed_password):
@@ -645,8 +646,12 @@ def verify_otp():
                     return redirect(url_for('login'))
                 else:
                     flash("Password reset failed. Please try again.", "danger")
+                    show_password_form = True
 
-    return render_template('verify_otp.html', otp_verified=otp_verified)
+    elif session.get('otp_verified'):
+        show_password_form = True  # ✅ GET ile gelmiş ama önceden doğrulamışsa yine göster
+
+    return render_template('verify_otp.html', otp_verified=show_password_form)
 
 
 
